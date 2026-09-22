@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>儲備管家</title>
+<meta name="description" content="個人食材庫存與防災儲備管理：效期輪替、每日菜單、採買清單">
+<meta name="theme-color" content="#1f6f5f">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="儲備管家">
+<style>
+:root{
+  --bg:#f4f5f2; --card:#ffffff; --text:#1c1f1d; --muted:#6b736f; --line:#e3e6e2;
+  --brand:#1f6f5f; --brand-soft:#e2f0ec; --accent:#c9a227;
+  --red:#c8412f; --red-soft:#fbe6e2; --orange:#d67a12; --orange-soft:#fdeedd;
+  --yellow:#b08a00; --yellow-soft:#fbf3cf; --blue:#2b6cb0; --blue-soft:#e3ecf7;
+  --green:#2f855a; --green-soft:#e1f2e8; --purple:#6b46c1; --purple-soft:#ece6f8; --grey:#7a7f7c; --grey-soft:#ecedeb;
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#121514; --card:#1c201e; --text:#e8ebe9; --muted:#9aa39e; --line:#2b312e;
+    --brand:#4fb39b; --brand-soft:#173029; --accent:#e0b93c;
+    --red:#ef7a68; --red-soft:#3a1f1a; --orange:#f0a04b; --orange-soft:#3a2a15;
+    --yellow:#e2c04a; --yellow-soft:#3a3315; --blue:#7fb0e8; --blue-soft:#182838;
+    --green:#6fcf97; --green-soft:#16301f; --purple:#b39ddb; --purple-soft:#2a2340; --grey:#a0a6a3; --grey-soft:#2a2e2c;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 16px 8px;display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line)}
+header.top h1{font-size:19px;margin:0;font-weight:700}
+header.top .date{color:var(--muted);font-size:13px}
+main{padding:12px 16px calc(84px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav.tabs button{flex:1;background:none;border:0;padding:10px 4px 8px;color:var(--muted);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button .ic{font-size:20px;line-height:1}
+nav.tabs button.on{color:var(--brand);font-weight:600}
+nav.tabs button .dot{position:absolute;margin-left:22px;margin-top:-2px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+h2{font-size:15px;margin:18px 0 8px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+h2:first-child{margin-top:4px}
+.card{background:var(--card);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);border:1px solid var(--line);margin-bottom:10px}
+.card.tight{padding:10px 12px}
+.row{display:flex;align-items:center;gap:10px}
+.row.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.xs{font-size:12px}
+.b{font-weight:600}
+.title{font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 8px;text-align:center}
+.stat .n{font-size:22px;font-weight:700;line-height:1.1}
+.stat .l{font-size:11px;color:var(--muted);margin-top:2px}
+.stat.red .n{color:var(--red)} .stat.orange .n{color:var(--orange)} .stat.purple .n{color:var(--purple)} .stat.brand .n{color:var(--brand)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;font-weight:600;white-space:nowrap;vertical-align:middle}
+.badge.expired{background:var(--red-soft);color:var(--red)}
+.badge.grace{background:var(--grey-soft);color:var(--grey)}
+.badge.late{background:var(--red-soft);color:var(--red)}
+.badge.opened{background:var(--purple-soft);color:var(--purple)}
+.badge.lag{background:var(--orange-soft);color:var(--orange)}
+.badge.start{background:var(--orange-soft);color:var(--orange)}
+.badge.soon{background:var(--yellow-soft);color:var(--yellow)}
+.badge.watch{background:var(--blue-soft);color:var(--blue)}
+.badge.ok{background:var(--green-soft);color:var(--green)}
+.badge.done{background:var(--grey-soft);color:var(--grey)}
+.badge.cat{background:var(--brand-soft);color:var(--brand)}
+.badge.reserve{background:var(--yellow-soft);color:var(--yellow)}
+.badge.noheat{background:var(--grey-soft);color:var(--grey)}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;color:var(--text);white-space:nowrap;flex:none}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.danger{color:var(--red);border-color:var(--red-soft);background:var(--red-soft)}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:8px}
+.btn.ghost{background:none;border-color:transparent;color:var(--brand)}
+.btn:disabled{opacity:.5}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:13px;white-space:nowrap;color:var(--muted)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.search{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin-bottom:8px}
+.bar{height:8px;background:var(--grey-soft);border-radius:999px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--green)}
+.bar i.warn{background:var(--orange)} .bar i.bad{background:var(--red)}
+.list-item{padding:10px 0;border-top:1px solid var(--line)}
+.list-item:first-child{border-top:0;padding-top:2px}
+.fab{position:fixed;right:18px;bottom:calc(68px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;border:0;font-size:28px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:6}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.modal{background:var(--card);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.modal h3{margin:0 0 12px;font-size:17px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+.field.inline{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.field.inline label{margin:0;color:var(--text);font-size:15px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.switch{position:relative;width:46px;height:28px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch span{position:absolute;inset:0;background:var(--grey-soft);border-radius:999px;transition:.15s}
+.switch span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked+span{background:var(--brand)}
+.switch input:checked+span:before{transform:translateX(18px)}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;opacity:0;transition:.2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+.alert{border-left:4px solid var(--red);padding-left:10px}
+.alert.orange{border-left-color:var(--orange)} .alert.purple{border-left-color:var(--purple)} .alert.grey{border-left-color:var(--grey)}
+table.cats{width:100%;border-collapse:collapse;font-size:13px}
+table.cats th,table.cats td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+table.cats input{width:100%;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-size:13px}
+table.cats input.num{width:52px;text-align:center}
+.cat-editor{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.week-day{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.week-day:first-child{border-top:0}
+.week-day .d{width:56px;flex:none;font-size:13px;color:var(--muted)}
+.week-day .d b{display:block;color:var(--text);font-size:15px}
+.check{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.check:first-child{border-top:0}
+.check input{width:20px;height:20px}
+.check .done{text-decoration:line-through;color:var(--muted)}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.kv:first-child{border-top:0}
+code{background:var(--grey-soft);padding:1px 5px;border-radius:5px;font-size:13px}
+.menu-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.menu-item:first-child{border-top:0}
+.menu-item .qty{width:44px;height:44px;flex:none;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;line-height:1}
+.menu-item .qty small{font-size:10px;font-weight:500}
+.menu-item.urgent .qty{background:var(--orange-soft);color:var(--orange)}
+.menu-item.opened .qty{background:var(--purple-soft);color:var(--purple)}
+</style>
+</head>
+<body>
+<header class="top"><h1 id="hdr-title">儲備管家</h1><span class="date" id="hdr-date"></span></header>
+<main id="view"></main>
+<nav class="tabs">
+  <button data-v="today"><span class="ic">☀️</span>今日</button>
+  <button data-v="inv"><span class="ic">📦</span>庫存</button>
+  <button data-v="shop"><span class="ic">🛒</span>採買</button>
+  <button data-v="set"><span class="ic">⚙️</span>設定</button>
+</nav>
+<button class="fab" id="fab" title="新增食材" style="display:none">＋</button>
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const APP_VERSION='0.1.0';
+const KEY='pantry.v1';
+
+/* ---------- 日期工具 ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const toISO=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const fromISO=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);};
+const todayISO=()=>toISO(new Date());
+const addDays=(iso,n)=>{const d=fromISO(iso);d.setDate(d.getDate()+n);return toISO(d);};
+const diffDays=(a,b)=>Math.round((fromISO(b)-fromISO(a))/86400000); // b - a
+const minISO=(a,b)=>a<b?a:b;
+const WD='日一二三四五六';
+function fmt(iso){if(!iso)return '—';const d=fromISO(iso);const y=new Date().getFullYear();return (d.getFullYear()!==y?d.getFullYear()+'/':'')+(d.getMonth()+1)+'/'+d.getDate();}
+function fmtRel(days){if(days===0)return '今天';if(days===1)return '明天';if(days===-1)return '昨天';return days>0?`${days} 天後`:`${-days} 天前`;}
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const round1=n=>Math.round(n*10)/10;
+
+/* ---------- 預設值 ---------- */
+const DEFAULT_CATS=[
+  {id:'staple', name:'即食主食',   label:'份', dailyNeed:3,   dailyLimit:3, concurrentOpen:1, openedDays:10, graceDays:0},
+  {id:'protein',name:'蛋白質罐頭', label:'罐', dailyNeed:1.5, dailyLimit:1, concurrentOpen:1, openedDays:2,  graceDays:30},
+  {id:'veg',    name:'蔬果',       label:'份', dailyNeed:1,   dailyLimit:1, concurrentOpen:1, openedDays:3,  graceDays:30},
+  {id:'drink',  name:'飲料/電解質',label:'瓶', dailyNeed:1,   dailyLimit:2, concurrentOpen:1, openedDays:1,  graceDays:30},
+  {id:'snack',  name:'零食/糖分',  label:'份', dailyNeed:1,   dailyLimit:2, concurrentOpen:1, openedDays:10, graceDays:0},
+  {id:'other',  name:'其他',       label:'份', dailyNeed:0,   dailyLimit:2, concurrentOpen:1, openedDays:3,  graceDays:0},
+];
+const DEFAULT_SETTINGS={people:1,days:7,bufferDays:7,lagThreshold:20,rateWindow:14,horizon:180,overstockFactor:1.5,strictExpiry:false};
+const DEFAULT_KIT=['手動開罐器','免洗餐具、紙杯','儲水容器 / 水袋','垃圾袋','濕紙巾、乾洗手','手電筒與備用電池','行動電源（保持有電）','哨子','口罩','常備藥、個人藥品','現金零錢','重要文件影本'];
+
+/* ---------- 狀態 ---------- */
+let state=load();
+let view='today';
+let invFilter='all', invQuery='';
+
+function load(){
+  let s=null;
+  try{s=JSON.parse(localStorage.getItem(KEY)||'null');}catch(e){}
+  if(!s) s={};
+  s.settings=Object.assign({},DEFAULT_SETTINGS,s.settings||{});
+  s.categories=(s.categories&&s.categories.length)?s.categories:JSON.parse(JSON.stringify(DEFAULT_CATS));
+  s.items=s.items||[];
+  s.kit=s.kit||DEFAULT_KIT.map(n=>({name:n,checked:false}));
+  s.shopping=s.shopping||[];
+  return s;
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){toast('儲存失敗：空間不足或瀏覽器限制');}}
+function catOf(id){return state.categories.find(c=>c.id===id)||state.categories[state.categories.length-1];}
+
+/* ---------- 單品計算 ---------- */
+function itemInfo(it,today){
+  today=today||todayISO();
+  const S=state.settings, cat=catOf(it.cat);
+  const spp=Math.max(1,Math.round(+it.servingsPerPack||1));
+  const packs=Math.max(0,Math.round(+it.packs||0));
+  const openRem=it.open?Math.max(0,Math.round(+it.open.remaining||0)):0;
+  const remaining=packs*spp+openRem;
+  const openedDays=(it.openedDays!==''&&it.openedDays!=null&&!isNaN(+it.openedDays))?+it.openedDays:(+cat.openedDays||1);
+  let planRate=Math.round(+it.rate||0);
+  if(planRate<1) planRate=Math.max(1,Math.round(+cat.dailyLimit||1));
+  if(cat.dailyLimit>0) planRate=Math.min(planRate,cat.dailyLimit);
+  const daysToExpiry=diffDays(today,it.expiry);
+  const grace=S.strictExpiry?0:(+cat.graceDays||0);
+  const expState=daysToExpiry<0?(daysToExpiry>=-grace?'grace':'expired'):'ok';
+  const openDeadline=(it.open&&openRem>0)?minISO(it.expiry,addDays(it.open.openedAt,openedDays)):null;
+  const openDaysLeft=openDeadline!=null?diffDays(today,openDeadline):null;
+  const daysNeeded=Math.ceil(remaining/planRate);
+  const latestStart=addDays(it.expiry,-(S.bufferDays+daysNeeded));
+  const slack=diffDays(today,latestStart);
+  const win=daysToExpiry-S.bufferDays;
+  const requiredRate=win>0?remaining/win:(remaining>0?Infinity:0);      // 含緩衝，用於均攤與超量判斷
+  const strictRate=daysToExpiry>0?remaining/daysToExpiry:(remaining>0?Infinity:0); // 不含緩衝，用於「來不及」
+  const log=it.log||[];
+  let actualRate=null,lag=false,projectedFinish=null;
+  if(log.length){
+    const first=log.reduce((m,l)=>l.date<m?l.date:m,log[0].date);
+    const since=diffDays(first,today)+1;
+    if(since>=3){
+      const span=Math.min(S.rateWindow,since);
+      const from=addDays(today,-(span-1));
+      const sum=log.filter(l=>l.date>=from).reduce((a,l)=>a+(+l.qty||0),0);
+      actualRate=sum/span;
+      if(remaining>0){
+        if(actualRate>0){const need=Math.ceil(remaining/actualRate);projectedFinish=addDays(today,need);lag=need>win;}
+        else lag=true;
+      }
+    }
+  }
+  const consumedToday=log.filter(l=>l.date===today).reduce((a,l)=>a+(+l.qty||0),0);
+  let status='ok';
+  if(remaining<=0) status='done';
+  else if(expState==='expired') status='expired';
+  else if(expState==='grace') status='grace';
+  else if(strictRate>planRate) status='late';
+  else if(openRem>0) status='opened';
+  else if(lag) status='lag';
+  else if(slack<=0) status='start';
+  else if(slack<=7) status='soon';
+  else if(slack<=30) status='watch';
+  return {cat,spp,packs,openRem,remaining,openedDays,planRate,daysToExpiry,expState,openDeadline,openDaysLeft,daysNeeded,latestStart,slack,requiredRate,actualRate,lag,projectedFinish,consumedToday,status,started:log.length>0};
+}
+const STATUS_LABEL={expired:'已過期',grace:'寬限中',late:'來不及',opened:'已開封',lag:'進度落後',start:'該開始吃',soon:'7天內要開始',watch:'30天內要開始',ok:'正常',done:'已用完'};
+
+/* ---------- 排程模擬 ---------- */
+function simulate(today){
+  today=today||todayISO();
+  const S=state.settings;
+  const H=Math.min(365,Math.max(30,+S.horizon||180));
+  const sims=state.items.filter(i=>i.status==='active').map(it=>{
+    const info=itemInfo(it,today);
+    return {it,cat:info.cat,info,spp:info.spp,packs:info.packs,
+      open:(it.open&&info.openRem>0)?{remaining:info.openRem,deadline:info.openDeadline}:null,
+      credit:0,plan:[],finish:null,late:false,leftover:0,wasted:0,overOpen:false};
+  }).filter(s=>s.packs*s.spp+(s.open?s.open.remaining:0)>0);
+
+  for(let d=0;d<H;d++){
+    const date=addDays(today,d);
+    const cap={},openCnt={};
+    state.categories.forEach(c=>{cap[c.id]=(+c.dailyLimit>0)?+c.dailyLimit:Infinity;openCnt[c.id]=0;});
+    if(d===0){ sims.forEach(s=>{cap[s.cat.id]-=s.info.consumedToday;}); }
+    sims.forEach(s=>{
+      if(s.finish||s.late)return;
+      const rem=s.packs*s.spp+(s.open?s.open.remaining:0);
+      if(rem<=0){s.finish=s.finish||date;return;}
+      if(date>s.it.expiry){s.late=true;s.leftover=rem;s.packs=0;s.open=null;return;}
+      if(s.open&&date>s.open.deadline){s.wasted+=s.open.remaining;s.open=null;}
+      if(s.open)openCnt[s.cat.id]++;
+    });
+    const active=sims.filter(s=>!s.finish&&!s.late);
+    active.forEach(s=>{
+      const rem=s.packs*s.spp+(s.open?s.open.remaining:0);
+      const daysNeeded=Math.ceil(rem/s.info.planRate);
+      s._ls=addDays(s.it.expiry,-(S.bufferDays+daysNeeded));
+      s._slack=diffDays(date,s._ls);
+      s._key=s.open?(-100000+diffDays(date,s.open.deadline)):s._slack;
+    });
+    active.sort((a,b)=>a._key-b._key);
+    for(const s of active){
+      const cid=s.cat.id;
+      if(!(cap[cid]>0))continue;
+      const rate=s.info.planRate;
+      let want=0,urgent=false;
+      if(s.open){want=Math.min(rate,s.open.remaining);}
+      else{
+        if(s._slack<=0){want=rate;urgent=true;}
+        else{
+          const win=Math.max(1,diffDays(date,s.it.expiry)-S.bufferDays);
+          s.credit+=(s.packs*s.spp)/win;
+          if(s.credit>=1&&(openCnt[cid]||0)<(+s.cat.concurrentOpen||1)) want=Math.min(Math.floor(s.credit),rate);
+        }
+      }
+      if(d===0) want=Math.max(0,want-s.info.consumedToday);
+      want=Math.floor(Math.min(want,cap[cid]));
+      if(want<1)continue;
+      let opened=false;
+      if(!s.open){
+        if(s.packs<=0)continue;
+        s.packs--;
+        s.open={remaining:s.spp,deadline:minISO(s.it.expiry,addDays(date,s.info.openedDays))};
+        openCnt[cid]++;opened=true;
+        if(urgent&&openCnt[cid]>(+s.cat.concurrentOpen||1))s.overOpen=true;
+      }
+      const qty=Math.min(want,s.open.remaining);
+      s.open.remaining-=qty;cap[cid]-=qty;s.credit=Math.max(0,s.credit-qty);
+      s.plan.push({date,qty,opened,urgent});
+      if(s.open.remaining<=0){s.open=null;openCnt[cid]--;}
+      if(s.packs<=0&&!s.open)s.finish=date;
+    }
+  }
+  const byCat={};
+  state.categories.forEach(c=>byCat[c.id]={req:0,limit:+c.dailyLimit||Infinity,items:0});
+  sims.forEach(s=>{const b=byCat[s.cat.id];if(!b||s.info.expState!=='ok')return;b.items++;b.req+=isFinite(s.info.requiredRate)?s.info.requiredRate:999;});
+  return {sims,byCat,today};
+}
+
+/* ---------- 儲備健康度 / 採買 ---------- */
+function reserveHealth(sim){
+  const S=state.settings,today=sim.today;
+  const until=addDays(today,14);
+  return state.categories.filter(c=>+c.dailyNeed>0).map(c=>{
+    let servings=0,byMonth={},nItems=0;
+    state.items.filter(i=>i.status==='active'&&i.cat===c.id&&i.readyToEat!==false).forEach(i=>{
+      const inf=itemInfo(i,today);
+      if(inf.expState==='ok'&&inf.remaining>0){servings+=inf.remaining;nItems++;const m=i.expiry.slice(0,7);byMonth[m]=(byMonth[m]||0)+inf.remaining;}
+    });
+    let planned14=0;
+    sim.sims.filter(s=>s.cat.id===c.id&&s.it.readyToEat!==false&&s.info.expState==='ok').forEach(s=>{s.plan.forEach(p=>{if(p.date<=until)planned14+=p.qty;});});
+    const target=+c.dailyNeed*S.days*S.people;
+    const projected=Math.max(0,servings-planned14);
+    const shortfall=Math.max(0,target-projected);
+    const deficitNow=Math.max(0,target-servings);
+    const b=sim.byCat[c.id]||{req:0,limit:Infinity};
+    const overstock=servings>target*S.overstockFactor&&b.req>b.limit;
+    let stagger=null;
+    const months=Object.entries(byMonth);
+    if(nItems>=3&&servings>0){const mx=months.sort((a,b)=>b[1]-a[1])[0];if(mx[1]/servings>0.5)stagger=mx[0].replace('-','/');}
+    return {cat:c,servings,target,days:servings/+c.dailyNeed,deficitNow,shortfall,pct:target>0?Math.min(1,servings/target):1,overstock,stagger,overload:b.req>b.limit};
+  });
+}
+
+/* ---------- 動作 ---------- */
+function consume(id,qty){
+  const it=state.items.find(i=>i.id===id);if(!it)return;
+  qty=Math.max(1,Math.round(qty));
+  const today=todayISO();
+  let left=qty,eaten=0,openedNow=false;
+  while(left>0){
+    if(!it.open||it.open.remaining<=0){
+      if((+it.packs||0)<=0)break;
+      it.packs=+it.packs-1;it.open={openedAt:today,remaining:+it.servingsPerPack||1};openedNow=true;
+    }
+    const take=Math.min(left,it.open.remaining);
+    it.open.remaining-=take;left-=take;eaten+=take;
+    if(it.open.remaining<=0)it.open=null;
+  }
+  if(eaten<=0){toast('已經沒有庫存了');return;}
+  it.log=it.log||[];it.log.push({date:today,qty:eaten});
+  const inf=itemInfo(it);
+  if(inf.remaining<=0){it.status='done';it.doneAt=today;toast(`${it.name} 已全部吃完 🎉`);}
+  else toast(`已登記：${it.name} ${eaten} ${inf.cat.label}${openedNow?'（已開封）':''}`);
+  save();render();
+}
+function openPack(id){
+  const it=state.items.find(i=>i.id===id);if(!it)return;
+  if(it.open&&it.open.remaining>0){toast('已經有開封中的包裝');return;}
+  if((+it.packs||0)<=0){toast('沒有未開封的包裝');return;}
+  it.packs=+it.packs-1;it.open={openedAt:todayISO(),remaining:+it.servingsPerPack||1};
+  const inf=itemInfo(it);
+  toast(`已開封，${inf.openedDays} 天內吃完（${fmt(inf.openDeadline)} 前）`);
+  save();render();
+}
+function setStatus(id,status){
+  const it=state.items.find(i=>i.id===id);if(!it)return;
+  it.status=status;it.doneAt=todayISO();
+  if(status==='active'){delete it.doneAt;}
+  save();render();closeModal();
+}
+function removeItem(id){state.items=state.items.filter(i=>i.id!==id);save();render();closeModal();}
+
+/* ---------- UI 基礎 ---------- */
+let toastTimer;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
+function openModal(html){const r=document.getElementById('modal-root');r.innerHTML=`<div class="modal-bg" id="modal-bg"><div class="modal">${html}</div></div>`;r.querySelector('#modal-bg').addEventListener('click',e=>{if(e.target.id==='modal-bg')closeModal();});}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+function badge(status){return `<span class="badge ${status}">${STATUS_LABEL[status]||status}</span>`;}
+function statusExtra(inf){
+  const out=[];
+  if(inf.status!=='opened'&&inf.openRem>0)out.push(badge('opened'));
+  if(inf.status!=='lag'&&inf.lag&&inf.status!=='late')out.push(badge('lag'));
+  return out.join(' ');
+}
+
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.v;render();window.scrollTo(0,0);}));
+document.getElementById('fab').addEventListener('click',()=>editItem(null));
+
+function render(){
+  const today=todayISO();
+  document.getElementById('hdr-date').textContent=`${fmt(today)}（${WD[fromISO(today).getDay()]}）`;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  document.getElementById('fab').style.display=view==='inv'?'block':'none';
+  const v=document.getElementById('view');
+  const titles={today:'儲備管家',inv:'庫存',shop:'採買清單',set:'設定'};
+  document.getElementById('hdr-title').textContent=titles[view]||'儲備管家';
+  if(view==='today')v.innerHTML=renderToday();
+  else if(view==='inv')v.innerHTML=renderInv();
+  else if(view==='shop')v.innerHTML=renderShop();
+  else v.innerHTML=renderSettings();
+  bindView();
+}
+
+/* ---------- 今日 ---------- */
+function renderToday(){
+  const today=todayISO();
+  const active=state.items.filter(i=>i.status==='active');
+  if(!active.length){
+    return `<div class="empty">還沒有任何食材。<br><br><button class="btn primary" data-act="goinv">新增第一筆食材</button><br><br><button class="btn ghost" data-act="sample">或先載入範例資料看看</button></div>`;
+  }
+  const sim=simulate(today);
+  const infos=active.map(i=>({it:i,inf:itemInfo(i,today)}));
+  const health=reserveHealth(sim);
+  const S=state.settings;
+  const nExpired=infos.filter(x=>x.inf.status==='expired').length;
+  const nLate=infos.filter(x=>{const s=sim.sims.find(s=>s.it.id===x.it.id);return x.inf.status==='late'||x.inf.lag||(s&&(s.late||s.wasted>0)&&x.inf.expState==='ok');}).length;
+  const nOpened=infos.filter(x=>x.inf.openRem>0).length;
+  const covered=health.length?Math.min(...health.map(h=>h.days)):0;
+  const coveredTxt=isFinite(covered)?round1(covered):'—';
+
+  let html=`<div class="stats">
+    <div class="stat brand"><div class="n">${coveredTxt}</div><div class="l">可撐天數（目標${S.days}）</div></div>
+    <div class="stat red"><div class="n">${nExpired}</div><div class="l">已過期</div></div>
+    <div class="stat orange"><div class="n">${nLate}</div><div class="l">來不及/落後</div></div>
+    <div class="stat purple"><div class="n">${nOpened}</div><div class="l">開封中</div></div>
+  </div>`;
+
+  // 今日菜單
+  const todayPlan=[];
+  sim.sims.forEach(s=>s.plan.forEach(p=>{if(p.date===today)todayPlan.push({s,p});}));
+  todayPlan.sort((a,b)=>(b.p.urgent-a.p.urgent)||(a.s._key-b.s._key));
+  html+=`<h2>今天該吃什麼</h2><div class="card">`;
+  if(!todayPlan.length){
+    const done=infos.filter(x=>x.inf.consumedToday>0);
+    html+=`<div class="muted small" style="padding:6px 0">今天沒有需要輪替的食材${done.length?'，已登記：'+done.map(x=>`${esc(x.it.name)} ${x.inf.consumedToday}${x.inf.cat.label}`).join('、'):''} 👍</div>`;
+  }else{
+    todayPlan.forEach(({s,p})=>{
+      const it=s.it,inf=s.info;
+      const cls=inf.openRem>0?'opened':(p.urgent?'urgent':'');
+      let why='';
+      if(inf.openRem>0)why=`已開封，${fmt(inf.openDeadline)} 前要吃完（剩 ${inf.openRem} ${inf.cat.label}）`;
+      else if(p.urgent)why=`效期 ${fmt(it.expiry)}，現在不開始會來不及`;
+      else why=`輪替：效期 ${fmt(it.expiry)}，均攤消耗`;
+      html+=`<div class="menu-item ${cls}">
+        <div class="qty">${p.qty}<small>${esc(inf.cat.label)}</small></div>
+        <div class="grow"><div class="title">${p.opened?'開封 · ':''}${esc(it.name)}</div><div class="xs muted">${why}</div></div>
+        <button class="btn sm primary" data-act="consume" data-id="${it.id}" data-qty="${p.qty}">完成</button>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+
+  // 警示
+  const alerts=[];
+  infos.filter(x=>x.inf.status==='expired').forEach(x=>alerts.push({cls:'',t:`${esc(x.it.name)} 已過期 ${-x.inf.daysToExpiry} 天`,s:`剩 ${x.inf.remaining} ${x.inf.cat.label}，建議報廢`,btn:`<button class="btn sm danger" data-act="discard" data-id="${x.it.id}">報廢</button>`}));
+  infos.filter(x=>x.inf.status==='grace').forEach(x=>alerts.push({cls:'grey',t:`${esc(x.it.name)} 已過賞味期 ${-x.inf.daysToExpiry} 天（寬限中）`,s:`剩 ${x.inf.remaining} ${x.inf.cat.label}，可作緊急備用，平時優先吃掉或報廢`,btn:`<button class="btn sm" data-act="consume" data-id="${x.it.id}" data-qty="1">吃 1</button>`}));
+  infos.filter(x=>{const s=sim.sims.find(s=>s.it.id===x.it.id);return x.inf.status==='late'||(s&&(s.late||s.wasted>0)&&x.inf.expState==='ok');}).forEach(x=>{const s=sim.sims.find(s=>s.it.id===x.it.id);const lost=s?(s.leftover+s.wasted):x.inf.remaining;alerts.push({cls:'',t:`${esc(x.it.name)} 照目前上限吃不完`,s:`效期 ${fmt(x.it.expiry)}，剩 ${x.inf.remaining} ${x.inf.cat.label}，每天最多 ${x.inf.planRate}，${lost>0?`預估約 ${lost} ${x.inf.cat.label} 會浪費`:'其他同類食材會被擠到來不及'}。考慮分享、轉讓或提高每日上限。`,btn:`<button class="btn sm" data-act="edit" data-id="${x.it.id}">調整</button>`});});
+  infos.filter(x=>x.inf.lag&&x.inf.status!=='late'&&x.inf.status!=='expired').forEach(x=>alerts.push({cls:'orange',t:`${esc(x.it.name)} 進度落後`,s:`最近實際約每天 ${round1(x.inf.actualRate)} ${x.inf.cat.label}（預估 ${x.inf.planRate}），照這速度 ${x.inf.projectedFinish?fmt(x.inf.projectedFinish)+' 才吃完':'吃不完'}，效期 ${fmt(x.it.expiry)}`,btn:''}));
+  infos.filter(x=>x.inf.openRem>0&&x.inf.openDaysLeft!=null&&x.inf.openDaysLeft<=1&&x.inf.status!=='expired').forEach(x=>alerts.push({cls:'purple',t:`${esc(x.it.name)} 開封後${x.inf.openDaysLeft<=0?'今天':'明天'}到期`,s:`還剩 ${x.inf.openRem} ${x.inf.cat.label}，${x.inf.openDaysLeft<0?'已超過建議期限':'請盡快吃完'}`,btn:`<button class="btn sm" data-act="consume" data-id="${x.it.id}" data-qty="${x.inf.openRem}">全部吃完</button>`}));
+  health.filter(h=>h.deficitNow>0).forEach(h=>alerts.push({cls:'orange',t:`${esc(h.cat.name)} 儲備不足`,s:`目前 ${h.servings} ${h.cat.label}，目標 ${h.target}，只夠 ${round1(h.days)} 天`,btn:`<button class="btn sm" data-act="goshop">採買</button>`}));
+  health.filter(h=>h.overstock).forEach(h=>alerts.push({cls:'grey',t:`${esc(h.cat.name)} 已超量，暫停採買`,s:`庫存 ${h.servings} ${h.cat.label}，以每天最多 ${h.cat.dailyLimit} 的速度在效期內吃不完`,btn:''}));
+  if(alerts.length){
+    html+=`<h2>需要注意</h2>`;
+    alerts.forEach(a=>{html+=`<div class="card tight alert ${a.cls}"><div class="row between"><div class="grow"><div class="b">${a.t}</div><div class="xs muted">${a.s}</div></div>${a.btn}</div></div>`;});
+  }
+
+  // 儲備健康度
+  html+=`<h2>儲備健康度（無火無電、可直接吃）</h2><div class="card">`;
+  if(!health.length)html+=`<div class="muted small">尚未設定任何類別的每日需求</div>`;
+  health.forEach(h=>{
+    const cls=h.pct<0.5?'bad':(h.pct<1?'warn':'');
+    html+=`<div class="list-item"><div class="row between"><span class="b">${esc(h.cat.name)}</span><span class="small muted">${h.servings} / ${h.target} ${esc(h.cat.label)} · 可撐 ${round1(h.days)} 天</span></div><div class="bar"><i class="${cls}" style="width:${Math.round(h.pct*100)}%"></i></div>${h.stagger?`<div class="xs muted" style="margin-top:4px">⚠ 效期集中在 ${h.stagger}，採買時挑不同效期分散</div>`:''}</div>`;
+  });
+  html+=`</div>`;
+
+  // 本週預覽
+  html+=`<h2>接下來 7 天</h2><div class="card">`;
+  for(let d=1;d<=7;d++){
+    const date=addDays(today,d);
+    const entries=[];
+    sim.sims.forEach(s=>s.plan.forEach(p=>{if(p.date===date)entries.push(`${p.opened?'開 ':''}${esc(s.it.name)} ${p.qty}${esc(s.cat.label)}`);}));
+    html+=`<div class="week-day"><div class="d">${WD[fromISO(date).getDay()]}<b>${fmt(date)}</b></div><div class="grow small ${entries.length?'':'muted'}">${entries.length?entries.join('、'):'—'}</div></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+/* ---------- 庫存 ---------- */
+function renderInv(){
+  const today=todayISO();
+  const all=state.items.map(i=>({it:i,inf:itemInfo(i,today)}));
+  const filters=[['all','全部'],['attention','需注意'],['opened','開封中'],['reserve','儲備品'],['history','歷史']];
+  let html=`<input class="search" id="inv-q" placeholder="搜尋名稱、料號、位置…" value="${esc(invQuery)}">`;
+  html+=`<div class="chips">${filters.map(([k,l])=>`<button class="chip ${invFilter===k?'on':''}" data-filter="${k}">${l}</button>`).join('')}</div>`;
+  let list=all.filter(x=>invFilter==='history'?x.it.status!=='active':x.it.status==='active');
+  if(invFilter==='attention')list=list.filter(x=>['expired','grace','late','lag','start','soon'].includes(x.inf.status)||x.inf.lag);
+  if(invFilter==='opened')list=list.filter(x=>x.inf.openRem>0);
+  if(invFilter==='reserve')list=list.filter(x=>x.it.reserve);
+  if(invQuery){const q=invQuery.toLowerCase();list=list.filter(x=>[x.it.name,x.it.sku,x.it.location,x.it.note,x.inf.cat.name].some(f=>(f||'').toLowerCase().includes(q)));}
+  const order={expired:0,grace:1,late:2,opened:3,lag:4,start:5,soon:6,watch:7,ok:8,done:9};
+  list.sort((a,b)=>(order[a.inf.status]-order[b.inf.status])||(a.inf.slack-b.inf.slack));
+  if(!list.length){
+    html+=`<div class="empty">${state.items.length?'沒有符合條件的食材':'還沒有食材，按右下角 ＋ 新增'}${!state.items.length?'<br><br><button class="btn ghost" data-act="sample">載入範例資料</button>':''}</div>`;
+    return html;
+  }
+  html+=`<div class="xs muted" style="margin:0 2px 6px">${list.length} 項 · 依急迫度排序</div>`;
+  list.forEach(({it,inf})=>{
+    const hist=it.status!=='active';
+    html+=`<div class="card tight">
+      <div class="row between">
+        <div class="grow"><div class="title">${esc(it.name)}</div>
+          <div class="xs" style="margin-top:2px"><span class="badge cat">${esc(inf.cat.name)}</span> ${it.reserve?'<span class="badge reserve">儲備</span>':''} ${it.readyToEat===false?'<span class="badge noheat">需加熱/加水</span>':''} ${hist?badge(it.status==='discarded'?'expired':'done').replace('已過期','已報廢'):badge(inf.status)} ${hist?'':statusExtra(inf)}</div>
+        </div>
+        <div style="text-align:right;flex:none">
+          <div class="b">${inf.remaining} <span class="xs muted">${esc(inf.cat.label)}</span></div>
+          <div class="xs muted">${inf.packs} 未開${inf.openRem>0?` + 開封剩 ${inf.openRem}`:''}</div>
+        </div>
+      </div>
+      <div class="xs muted" style="margin-top:6px">
+        效期 ${fmt(it.expiry)}（${fmtRel(inf.daysToExpiry)}）${hist?'':` · 最晚 ${fmt(inf.latestStart)} 開始`}${inf.openDeadline?` · 開封至 ${fmt(inf.openDeadline)}`:''}${it.location?` · ${esc(it.location)}`:''}
+        ${inf.actualRate!=null&&!hist?`<br>預估每天 ${inf.planRate}，實際約 ${round1(inf.actualRate)} ${esc(inf.cat.label)}`:''}
+      </div>
+      ${hist?`<div class="actions"><button class="btn sm" data-act="restore" data-id="${it.id}">還原</button><button class="btn sm danger" data-act="delete" data-id="${it.id}">刪除</button></div>`
+      :`<div class="actions">
+        <button class="btn sm primary" data-act="consume" data-id="${it.id}" data-qty="1">吃 1 ${esc(inf.cat.label)}</button>
+        ${inf.openRem>0?'':`<button class="btn sm" data-act="open" data-id="${it.id}">開封</button>`}
+        <button class="btn sm" data-act="edit" data-id="${it.id}">編輯</button>
+        <button class="btn sm" data-act="more" data-id="${it.id}">⋯</button>
+      </div>`}
+    </div>`;
+  });
+  return html;
+}
+
+/* ---------- 採買 ---------- */
+function renderShop(){
+  const today=todayISO();
+  const sim=simulate(today);
+  const health=reserveHealth(sim);
+  let html='';
+  const auto=health.filter(h=>h.shortfall>0||h.overstock||h.stagger);
+  html+=`<h2>系統建議</h2><div class="card">`;
+  if(!auto.length)html+=`<div class="muted small">各類儲備都在目標之上，暫時不需要採買 👍</div>`;
+  auto.forEach(h=>{
+    let t='',s='';
+    if(h.overstock){t=`${esc(h.cat.name)}：暫停採買`;s=`庫存 ${h.servings} ${h.cat.label} 已超過目標 ${h.target} 的 ${state.settings.overstockFactor} 倍，且在效期內吃不完`;}
+    else if(h.shortfall>0){t=`${esc(h.cat.name)}：補 ${Math.ceil(h.shortfall)} ${esc(h.cat.label)}`;s=h.deficitNow>0?`目前 ${h.servings}，目標 ${h.target}，現在就不足`:`目前 ${h.servings} 夠，但 14 天內輪替吃掉後會低於目標 ${h.target}，先買再吃`;}
+    else{t=`${esc(h.cat.name)}：注意效期分散`;s=`超過一半的庫存效期都在 ${h.stagger}，下次採買挑不同效期`;}
+    if(h.stagger&&h.shortfall>0)s+=`；效期集中在 ${h.stagger}，挑別的批號`;
+    html+=`<div class="list-item row between"><div class="grow"><div class="b">${t}</div><div class="xs muted">${s}</div></div>${h.shortfall>0?`<button class="btn sm" data-act="addcat" data-cat="${h.cat.id}">已買，入庫</button>`:''}</div>`;
+  });
+  html+=`</div>`;
+
+  html+=`<h2>我的採買清單</h2><div class="card">
+    <div class="row"><input class="search" id="shop-new" placeholder="新增項目…" style="margin:0"><button class="btn primary" data-act="shopadd">加入</button></div>`;
+  const items=state.shopping;
+  if(items.length){
+    html+=`<div style="margin-top:8px">`;
+    items.forEach(s=>{html+=`<div class="check"><input type="checkbox" data-act="shoptoggle" data-id="${s.id}" ${s.done?'checked':''}><span class="grow ${s.done?'done':''}">${esc(s.text)}</span><button class="btn sm ghost" data-act="shopdel" data-id="${s.id}">✕</button></div>`;});
+    html+=`</div>`;
+    if(items.some(s=>s.done))html+=`<div class="actions"><button class="btn sm" data-act="shopclear">清除已完成</button></div>`;
+  }
+  html+=`</div>`;
+
+  html+=`<h2>防災小物檢查表（不會過期，但缺了就麻煩）</h2><div class="card">`;
+  state.kit.forEach((k,i)=>{html+=`<div class="check"><input type="checkbox" data-act="kittoggle" data-i="${i}" ${k.checked?'checked':''}><span class="grow ${k.checked?'done':''}">${esc(k.name)}</span><button class="btn sm ghost" data-act="kitdel" data-i="${i}">✕</button></div>`;});
+  html+=`<div class="row" style="margin-top:8px"><input class="search" id="kit-new" placeholder="新增小物…" style="margin:0"><button class="btn" data-act="kitadd">加入</button></div></div>`;
+  return html;
+}
+
+/* ---------- 設定 ---------- */
+function renderSettings(){
+  const S=state.settings;
+  const num=(k,label,hint,step)=>`<div class="field"><label>${label}</label><input type="number" step="${step||1}" min="0" data-set="${k}" value="${S[k]}">${hint?`<div class="hint">${hint}</div>`:''}</div>`;
+  let html=`<h2>儲備目標</h2><div class="card"><div class="grid2">${num('people','人數')}${num('days','要撐幾天')}</div><div class="hint">各類別的儲備目標 = 每日需求 × 人數 × 天數，只計算「可直接吃」且未過期的食材。</div></div>`;
+  html+=`<h2>排程參數</h2><div class="card">
+    ${num('bufferDays','緩衝天數','最晚開始日會比效期再提早這麼多天，預留意外')}
+    ${num('rateWindow','實際消耗速率用最近幾天計算')}
+    ${num('overstockFactor','超量門檻（目標的幾倍）','庫存超過目標 × 此倍數且效期內吃不完，就提醒暫停採買',0.1)}
+    ${num('horizon','排程模擬天數','越長越準但越慢，建議 90–365')}
+    <div class="field inline"><label>賞味期限一律嚴格視為過期<div class="hint">關閉時，各類別可設寬限天數，過期但在寬限內標為「寬限中」</div></label><label class="switch"><input type="checkbox" data-set="strictExpiry" ${S.strictExpiry?'checked':''}><span></span></label></div>
+  </div>`;
+  html+=`<h2>類別</h2><div class="card"><div class="hint" style="margin-bottom:8px">每日需求：災時一人一天需要幾份（0 = 不計入儲備）。每日上限：平時一天最多吃幾份，用來排菜單。同時開封：同類同時最多開幾包。開封後：開封後幾天內要吃完。寬限：過賞味期後仍可接受的天數。</div>`;
+  state.categories.forEach(c=>{
+    const used=state.items.filter(i=>i.cat===c.id).length;
+    html+=`<div class="cat-editor">
+      <div class="row"><input data-cat="${c.id}" data-f="name" value="${esc(c.name)}" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg)"><span class="xs muted">單位</span><input data-cat="${c.id}" data-f="label" value="${esc(c.label)}" style="width:44px;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);text-align:center">${used?`<span class="xs muted">${used} 項</span>`:`<button class="btn sm ghost" data-act="catdel" data-cat="${c.id}">刪除</button>`}</div>
+      <table class="cats"><tr><th>每日需求</th><th>每日上限</th><th>同時開封</th><th>開封後(天)</th><th>寬限(天)</th></tr>
+      <tr><td><input class="num" type="number" step="0.5" min="0" data-cat="${c.id}" data-f="dailyNeed" value="${c.dailyNeed}"></td>
+      <td><input class="num" type="number" min="1" data-cat="${c.id}" data-f="dailyLimit" value="${c.dailyLimit}"></td>
+      <td><input class="num" type="number" min="1" data-cat="${c.id}" data-f="concurrentOpen" value="${c.concurrentOpen}"></td>
+      <td><input class="num" type="number" min="0" data-cat="${c.id}" data-f="openedDays" value="${c.openedDays}"></td>
+      <td><input class="num" type="number" min="0" data-cat="${c.id}" data-f="graceDays" value="${c.graceDays}"></td></tr></table>
+    </div>`;
+  });
+  html+=`<div class="actions"><button class="btn sm" data-act="catadd">＋ 新增類別</button></div></div>`;
+  html+=`<h2>資料</h2><div class="card">
+    <div class="kv"><span>食材筆數</span><span>${state.items.filter(i=>i.status==='active').length} 進行中 / ${state.items.length} 全部</span></div>
+    <div class="kv"><span>資料存放</span><span class="muted small">只在這台裝置的瀏覽器裡</span></div>
+    <div class="actions">
+      <button class="btn" data-act="export">匯出備份 (JSON)</button>
+      <button class="btn" data-act="import">匯入備份</button>
+      <button class="btn" data-act="exportcsv">匯出庫存 CSV</button>
+    </div>
+    <div class="actions">
+      <button class="btn" data-act="sample">載入範例資料</button>
+      <button class="btn danger" data-act="wipe">清除全部資料</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json,.json" style="display:none">
+  </div>`;
+  const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  html+=`<h2>關於</h2><div class="card small">
+    <div class="kv"><span>版本</span><span>${APP_VERSION}</span></div>
+    <div class="kv"><span>安裝狀態</span><span>${standalone?'已加入主畫面':'瀏覽器中開啟'}</span></div>
+    ${standalone?'':`<div class="hint" style="margin-top:8px">加到手機主畫面後可離線使用、像 App 一樣開啟：<br>iPhone：Safari 分享 → 加入主畫面<br>Android：Chrome 選單 → 安裝應用程式 / 加到主畫面</div>`}
+    <div class="hint" style="margin-top:8px">資料只存在這台裝置上，換手機或清除瀏覽器資料前請先「匯出備份」。建議在手機行事曆設每週一提醒，打開看「今天該吃什麼」與採買清單。</div>
+  </div>`;
+  return html;
+}
+
+/* ---------- 表單 ---------- */
+function editItem(id,presetCat){
+  const it=id?state.items.find(i=>i.id===id):null;
+  const today=todayISO();
+  const v=it||{name:'',sku:'',cat:presetCat||state.categories[0].id,packs:1,servingsPerPack:1,expiry:addDays(today,365),openedDays:'',rate:'',reserve:true,readyToEat:true,location:'',note:''};
+  const catOpts=state.categories.map(c=>`<option value="${c.id}" ${c.id===v.cat?'selected':''}>${esc(c.name)}（${esc(c.label)}）</option>`).join('');
+  openModal(`<h3>${it?'編輯食材':'新增食材'}</h3>
+    <form id="item-form">
+      <div class="field"><label>名稱 *</label><input type="text" name="name" required value="${esc(v.name)}" placeholder="例：鮪魚罐頭 185g"></div>
+      <div class="field"><label>類別</label><select name="cat">${catOpts}</select></div>
+      <div class="grid2">
+        <div class="field"><label>未開封包裝數 *</label><input type="number" name="packs" min="0" step="1" required value="${v.packs}"></div>
+        <div class="field"><label>每包幾份</label><input type="number" name="servingsPerPack" min="1" step="1" value="${v.servingsPerPack}"><div class="hint">罐頭通常 1，餅乾看包裝標示</div></div>
+      </div>
+      <div class="field"><label>保存期限 *</label><input type="date" name="expiry" required value="${v.expiry}"></div>
+      <div class="grid2">
+        <div class="field"><label>開封後幾天內吃完</label><input type="number" name="openedDays" min="0" step="1" value="${v.openedDays??''}" placeholder="預設用類別"></div>
+        <div class="field"><label>預估每天吃幾份</label><input type="number" name="rate" min="1" step="1" value="${v.rate??''}" placeholder="預設用類別上限"></div>
+      </div>
+      <div class="field inline"><label>可直接吃（無火無電）<div class="hint">關閉的不計入儲備天數</div></label><label class="switch"><input type="checkbox" name="readyToEat" ${v.readyToEat!==false?'checked':''}><span></span></label></div>
+      <div class="field inline"><label>列為防災儲備品</label><label class="switch"><input type="checkbox" name="reserve" ${v.reserve?'checked':''}><span></span></label></div>
+      <div class="grid2">
+        <div class="field"><label>存放位置</label><input type="text" name="location" value="${esc(v.location)}" placeholder="例：廚房上櫃、防災包"></div>
+        <div class="field"><label>料號 / 條碼</label><input type="text" name="sku" value="${esc(v.sku)}"></div>
+      </div>
+      <div class="field"><label>備註</label><input type="text" name="note" value="${esc(v.note)}"></div>
+      <div id="form-preview" class="hint"></div>
+      <div class="actions" style="margin-top:14px"><button type="submit" class="btn primary">儲存</button><button type="button" class="btn" data-act="closemodal">取消</button></div>
+    </form>`);
+  const form=document.getElementById('item-form');
+  const preview=()=>{
+    const fd=new FormData(form);
+    const tmp={cat:fd.get('cat'),packs:+fd.get('packs'),servingsPerPack:+fd.get('servingsPerPack')||1,expiry:fd.get('expiry')||today,openedDays:fd.get('openedDays'),rate:fd.get('rate'),log:[]};
+    if(!tmp.expiry)return;
+    try{const inf=itemInfo(tmp,today);document.getElementById('form-preview').textContent=`共 ${inf.remaining} ${inf.cat.label}，每天最多 ${inf.planRate}，約需 ${inf.daysNeeded} 天吃完 → 最晚 ${fmt(inf.latestStart)} 開始（${fmtRel(inf.slack)}）`;}catch(e){}
+  };
+  form.addEventListener('input',preview);preview();
+  form.addEventListener('submit',e=>{
+    e.preventDefault();
+    const fd=new FormData(form);
+    const data={name:fd.get('name').trim(),cat:fd.get('cat'),packs:Math.max(0,Math.round(+fd.get('packs')||0)),servingsPerPack:Math.max(1,Math.round(+fd.get('servingsPerPack')||1)),expiry:fd.get('expiry'),openedDays:fd.get('openedDays')===''?'':+fd.get('openedDays'),rate:fd.get('rate')===''?'':+fd.get('rate'),readyToEat:fd.get('readyToEat')==='on',reserve:fd.get('reserve')==='on',location:fd.get('location').trim(),sku:fd.get('sku').trim(),note:fd.get('note').trim()};
+    if(!data.name||!data.expiry){toast('請填名稱與保存期限');return;}
+    if(it){Object.assign(it,data);if(it.open&&it.open.remaining>data.servingsPerPack)it.open.remaining=data.servingsPerPack;}
+    else state.items.push(Object.assign({id:uid(),status:'active',createdAt:today,log:[],open:null},data));
+    save();closeModal();render();toast(it?'已更新':'已新增');
+  });
+}
+function moreMenu(id){
+  const it=state.items.find(i=>i.id===id);if(!it)return;
+  const inf=itemInfo(it);
+  openModal(`<h3>${esc(it.name)}</h3>
+    <div class="small muted" style="margin-bottom:10px">剩 ${inf.remaining} ${esc(inf.cat.label)} · 效期 ${fmt(it.expiry)}</div>
+    <div class="field"><label>登記吃了幾${esc(inf.cat.label)}</label><div class="row"><input type="number" id="more-qty" min="1" max="${inf.remaining}" value="1" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--bg)"><button class="btn primary" data-act="consumeqty" data-id="${it.id}">登記</button></div></div>
+    ${(it.log||[]).length?`<div class="xs muted" style="margin-bottom:10px">最近紀錄：${it.log.slice(-5).reverse().map(l=>`${fmt(l.date)} ${l.qty}`).join('、')}</div>`:''}
+    <div class="actions">
+      <button class="btn" data-act="markdone" data-id="${it.id}">標記已用完</button>
+      <button class="btn danger" data-act="discard" data-id="${it.id}">報廢</button>
+      <button class="btn danger" data-act="delete" data-id="${it.id}">刪除紀錄</button>
+    </div>
+    <div class="actions"><button class="btn" data-act="closemodal">關閉</button></div>`);
+}
+
+/* ---------- 事件 ---------- */
+function bindView(){
+  const root=document.body;
+  root.onclick=e=>{
+    const el=e.target.closest('[data-act],[data-filter]');
+    if(!el)return;
+    if(el.dataset.filter){invFilter=el.dataset.filter;render();return;}
+    const act=el.dataset.act,id=el.dataset.id;
+    switch(act){
+      case 'consume':consume(id,+el.dataset.qty||1);break;
+      case 'consumeqty':{const q=+document.getElementById('more-qty').value||1;closeModal();consume(id,q);break;}
+      case 'open':openPack(id);break;
+      case 'edit':editItem(id);break;
+      case 'more':moreMenu(id);break;
+      case 'markdone':setStatus(id,'done');toast('已標記用完');break;
+      case 'discard':if(confirm('確定報廢？會移到歷史紀錄。')){setStatus(id,'discarded');toast('已報廢');}break;
+      case 'restore':setStatus(id,'active');break;
+      case 'delete':if(confirm('永久刪除這筆紀錄？'))removeItem(id);break;
+      case 'closemodal':closeModal();break;
+      case 'goinv':view='inv';render();break;
+      case 'goshop':view='shop';render();break;
+      case 'addcat':editItem(null,el.dataset.cat);break;
+      case 'shopadd':{const inp=document.getElementById('shop-new');const t=inp.value.trim();if(t){state.shopping.push({id:uid(),text:t,done:false});save();render();}break;}
+      case 'shopdel':state.shopping=state.shopping.filter(s=>s.id!==id);save();render();break;
+      case 'shopclear':state.shopping=state.shopping.filter(s=>!s.done);save();render();break;
+      case 'kitadd':{const inp=document.getElementById('kit-new');const t=inp.value.trim();if(t){state.kit.push({name:t,checked:false});save();render();}break;}
+      case 'kitdel':state.kit.splice(+el.dataset.i,1);save();render();break;
+      case 'catadd':{const nid='c'+uid();state.categories.push({id:nid,name:'新類別',label:'份',dailyNeed:0,dailyLimit:2,concurrentOpen:1,openedDays:3,graceDays:0});save();render();break;}
+      case 'catdel':{const cid=el.dataset.cat;if(state.items.some(i=>i.cat===cid)){toast('此類別還有食材，無法刪除');break;}if(state.categories.length<=1){toast('至少要保留一個類別');break;}state.categories=state.categories.filter(c=>c.id!==cid);save();render();break;}
+      case 'export':exportJSON();break;
+      case 'import':document.getElementById('import-file').click();break;
+      case 'exportcsv':exportCSV();break;
+      case 'sample':if(!state.items.length||confirm('會加入範例食材到目前庫存，繼續？')){loadSample();}break;
+      case 'wipe':if(confirm('確定清除全部資料？建議先匯出備份。')&&confirm('真的要清除嗎？此動作無法復原。')){localStorage.removeItem(KEY);state=load();render();toast('已清除');}break;
+    }
+  };
+  root.onchange=e=>{
+    const el=e.target;
+    if(el.dataset.act==='shoptoggle'){const s=state.shopping.find(x=>x.id===el.dataset.id);if(s){s.done=el.checked;save();render();}return;}
+    if(el.dataset.act==='kittoggle'){const k=state.kit[+el.dataset.i];if(k){k.checked=el.checked;save();render();}return;}
+    if(el.dataset.set){const k=el.dataset.set;state.settings[k]=el.type==='checkbox'?el.checked:(+el.value||0);if(k==='people'&&state.settings.people<1)state.settings.people=1;if(k==='days'&&state.settings.days<1)state.settings.days=1;save();toast('設定已儲存');return;}
+    if(el.dataset.cat&&el.dataset.f){const c=state.categories.find(c=>c.id===el.dataset.cat);if(c){c[el.dataset.f]=(el.type==='number')?(+el.value||0):el.value;if(el.dataset.f==='dailyLimit'&&c.dailyLimit<1)c.dailyLimit=1;if(el.dataset.f==='concurrentOpen'&&c.concurrentOpen<1)c.concurrentOpen=1;save();}return;}
+    if(el.id==='import-file'&&el.files[0]){importJSON(el.files[0]);}
+  };
+  root.oninput=e=>{if(e.target.id==='inv-q'){invQuery=e.target.value;const list=document.getElementById('view');const pos=e.target.selectionStart;render();const q=document.getElementById('inv-q');q.focus();q.setSelectionRange(pos,pos);}};
+  root.onkeydown=e=>{if(e.key==='Enter'&&(e.target.id==='shop-new'||e.target.id==='kit-new')){e.preventDefault();e.target.nextElementSibling.click();}};
+}
+
+/* ---------- 匯入匯出 / 範例 ---------- */
+function download(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+function exportJSON(){download(`pantry-backup-${todayISO()}.json`,JSON.stringify(Object.assign({exportedAt:new Date().toISOString(),version:APP_VERSION},state),null,2),'application/json');toast('已匯出備份');}
+function importJSON(file){
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!Array.isArray(d.items))throw 0;if(!confirm(`匯入 ${d.items.length} 筆食材，會覆蓋目前資料，繼續？`))return;localStorage.setItem(KEY,JSON.stringify({settings:d.settings,categories:d.categories,items:d.items,kit:d.kit,shopping:d.shopping}));state=load();render();toast('已匯入');}catch(e){toast('檔案格式不正確');}};
+  r.readAsText(file);
+}
+function exportCSV(){
+  const today=todayISO();
+  const rows=[['名稱','類別','狀態','未開封包裝','每包份數','開封中剩餘','總剩餘','單位','保存期限','距效期天數','最晚開始日','預估每天','可直接吃','儲備品','位置','料號','備註']];
+  state.items.forEach(it=>{const inf=itemInfo(it,today);rows.push([it.name,inf.cat.name,it.status==='active'?STATUS_LABEL[inf.status]:(it.status==='discarded'?'已報廢':'已用完'),inf.packs,inf.spp,inf.openRem,inf.remaining,inf.cat.label,it.expiry,inf.daysToExpiry,inf.latestStart,inf.planRate,it.readyToEat===false?'否':'是',it.reserve?'是':'否',it.location||'',it.sku||'',it.note||'']);});
+  const csv='﻿'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  download(`pantry-${today}.csv`,csv,'text/csv');toast('已匯出 CSV');
+}
+function loadSample(){
+  const t=todayISO();
+  const mk=(name,cat,packs,spp,days,extra)=>Object.assign({id:uid(),status:'active',createdAt:t,log:[],open:null,name,cat,packs,servingsPerPack:spp,expiry:addDays(t,days),openedDays:'',rate:'',readyToEat:true,reserve:true,location:'廚房上櫃',sku:'',note:''},extra||{});
+  state.items.push(
+    mk('鮪魚罐頭 185g','protein',6,1,540),
+    mk('鯖魚罐頭','protein',4,1,25,{note:'效期很近，範例'}),
+    mk('紅燒牛肉罐','protein',3,1,700,{location:'防災包'}),
+    mk('營養口糧','staple',4,4,400,{location:'防災包'}),
+    mk('蘇打餅乾（大包）','staple',2,8,120),
+    mk('能量棒','staple',12,1,200),
+    mk('常溫即食飯','staple',3,1,-5,{note:'已過期範例'}),
+    mk('水果罐頭（鳳梨）','veg',5,1,600),
+    mk('葡萄乾','veg',3,4,150),
+    mk('運動飲料 600ml','drink',6,1,180),
+    mk('保久乳 200ml','drink',6,1,60),
+    mk('巧克力','snack',4,2,90),
+    mk('堅果小包','snack',10,1,240),
+    mk('泡麵（需熱水）','other',5,1,150,{readyToEat:false,reserve:false,location:'廚房下櫃'}),
+  );
+  // 一個已開封、進度落後的範例
+  const bis=state.items.find(i=>i.name.startsWith('蘇打餅乾'));
+  bis.packs=1;bis.open={openedAt:addDays(t,-6),remaining:6};bis.log=[{date:addDays(t,-6),qty:1},{date:addDays(t,-4),qty:1}];
+  save();view='today';render();toast('已載入範例資料');
+}
+
+/* ---------- 啟動 ---------- */
+render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
+}
+if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(()=>{});}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)render();});
+</script>
+</body>
+</html>
